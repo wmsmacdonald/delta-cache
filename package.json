@@ -1,0 +1,23 @@
+{
+  "name": "delta-cache",
+  "version": "1.0.0",
+  "description": "Library for partially caching dynamic resources on the web - only page changes are sent",
+  "main": "index.js",
+  "scripts": {
+    "start": "babel-node server.js",
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/wmsmacdonald/delta-cache.git"
+  },
+  "author": "",
+  "license": "MIT",
+  "bugs": {
+    "url": "https://github.com/wmsmacdonald/delta-cache/issues"
+  },
+  "homepage": "https://github.com/wmsmacdonald/delta-cache#readme",
+  "dependencies": {
+    "express": "^4.14.0"
+  }
+}
