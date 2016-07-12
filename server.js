@@ -26,7 +26,7 @@ app.get('/dynamic.html', function (req, res) {
     versionHistory
   }
   res.header('Content-type', 'text/html');
-  return res.end('<h1>Sample Text</h1><h2>' + </h2>');
+  return delta(res.end('<h1>Sample Text</h1><h2>'));
 });
 
 https.createServer(options, app).listen(8000);
