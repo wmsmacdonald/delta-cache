@@ -5,7 +5,7 @@
   "main": "index.js",
   "scripts": {
     "start": "babel-node server.js",
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "test": "NODE_TLS_REJECT_UNAUTHORIZED=0 babel-node test.js"
   },
   "repository": {
     "type": "git",
@@ -18,6 +18,8 @@
   },
   "homepage": "https://github.com/wmsmacdonald/delta-cache#readme",
   "dependencies": {
-    "express": "^4.14.0"
+    "diff": "^2.2.3",
+    "express": "^4.14.0",
+    "pug": "^2.0.0-beta3"
   }
 }

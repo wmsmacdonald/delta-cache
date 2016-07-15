@@ -4,29 +4,49 @@ const express = require('express');
 const fs = require('fs');
 const http = require('http');
 const https = require('https');
+const diff_match_patch = require('./diff_match_patch');
+const diff = new diff_match_patch.diff_match_patch();
+const pug = require('pug');
+
+const testFile = fs.readFileSync('./test_files/test1.txt');
 
 let versionHistory = {};
 
 let options = {
-  key: fs.readFileSync('/home/bill/keys/key.pem'),
-  cert: fs.readFileSync('/home/bill/keys/cert.pem')
+  key: fs.readFileSync('/home/bill/.ssh/key.pem'),
+  cert: fs.readFileSync('/home/bill/.ssh/cert.pem')
 };
 
 let app = express();
+app.set('view engine', 'pug');
 
 app.use(express.static('test/public'));
 
-app.get('/dynamic', function (req, res) {
-  res.header('Content-type', 'text/html');
-  return res.end('<h1>Hello, Secure World');
-});
-
 app.get('/dynamic.html', function (req, res) {
-  if (req.headers['If-Modified-Since'] !== undefined) {
-    versionHistory
+  let date = new Date().toString();
+  let response = date + testFile;
+
+  // no version has been created yet
+  if (versionHistory[req.route.path] === undefined) {
+    versionHistory[req.route.path] = {};
   }
-  res.header('Content-type', 'text/html');
-  return delta(res.end('<h1>Sample Text</h1><h2>'));
+  versionHistory[req.route.path][date] = response;
+
+  res.header('Delta-Version', date);
+
+  if (req.headers['delta-version'] === undefined) {
+    res.header('Content-Type', 'text/html');
+    return res.end(response);
+  }
+  // client has a cached version of the page
+  else {
+    let clientVersion = versionHistory[req.route.path][req.headers['delta-version']];
+    let patches = diff.patch_make(clientVersion, response);
+    res.header('Delta-Patch', 'true');
+    console.log(JSON.stringify(patches));
+
+    return res.end(JSON.stringify(patches));
+  }
 });
 
 https.createServer(options, app).listen(8000);
