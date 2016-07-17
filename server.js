@@ -29,18 +29,25 @@ app.get('/dynamic.html', function (req, res) {
     versionHistory[req.route.path] = {};
   }
   versionHistory[req.route.path][date] = response;
-
   res.header('Delta-Version', date);
   if (req.headers['delta-version'] === undefined) {
     res.header('Content-Type', 'text/html');
     return res.end(response);
   }
-  else { // client has a cached version of the page
+  // client has a cached version of the page
+  else {
     let clientVersion = versionHistory[req.route.path][req.headers['delta-version']];
-    let patches = diff.patch_make(clientVersion, response);
-    res.header('Delta-Patch', 'true');
-    console.log(JSON.stringify(patches));
-    return res.end(JSON.stringify(patches));
+    // version not known
+    if (clientVersion === undefined) {
+      res.header('Content-Type', 'text/html');
+      return res.end(response);
+    }
+    else {
+      let patches = diff.patch_make(clientVersion, response);
+      res.header('Delta-Patch', 'true');
+      console.log(JSON.stringify(patches));
+      return res.end(JSON.stringify(patches));
+    }
   }
 });
 

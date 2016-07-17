@@ -1,79 +1,99 @@
 'use strict';
 
-let cache = {};
-let diff = new diff_match_patch();
+const diff = new diff_match_patch();
 
-console.log('Started', self);
 self.addEventListener('install', function(event) {
   self.skipWaiting();
   console.log('Installed', event);
 });
 self.addEventListener('activate', function(event) {
   console.log('Activated', event);
+
+  // cleans cache every time the service worker is initialized
+  event.waitUntil(
+    caches.delete('test')
+  );
 });
 
 self.onfetch = function(event) {
-  //console.log(event.request.url);
-  if (event.request.url === 'https://localhost:8000/dynamic.html') {
-    var init = {
-      method: 'GET',
-      mode: event.request.mode,
-      cache: 'default'
-    };
-    console.log('DEBUG: proxying', event.request.url);
+  event.respondWith(
+    caches.open('test').then(function(cache) {
 
-    if (cache.version === undefined && cache.data === undefined) {
-      let responseP = fetch(event.request.url, init);
+      return cache.match(event.request).then(function(cacheResponse) {
+        // request not cached
+        if (cacheResponse === undefined) {
+          let responseP = fetch(event.request.url);
+          responseP.then(cacheIfDelta.bind(null, cache, event.request));
+          return responseP;
+        }
+        else {
+          console.log('requesting delta');
 
-      responseP.then(function(response) {
-        let new_request = event.request.clone();
+          let headersWithCachedVersion = cloneHeaders(event.request.headers);
+          headersWithCachedVersion.append('Delta-Version', cacheResponse.headers.get('Delta-Version'));
 
-        console.log('got response');
+          // attach version of file to request
+          let serverRequestP = fetch(new Request(event.request, {
+            headers: {
+              'Delta-Version': cacheResponse.headers.get('Delta-Version')
+            }
+          }));
 
-        new_request.text().then((text) => {
-          cache.version = response.headers.get('Delta-Version');
-          cache.data = text;
-        });
-      });
-
-      event.respondWith(responseP);
-    }
-    else {
-      console.log('using cache');
-      let headers = new Headers();
-      headers.append('Delta-Version', cache.version);
-
-      let response;
-
-      let responseP = fetch(event.request.url, {
-        method: 'GET',
-        mode: event.request.mode,
-        cache: 'default',
-        headers: headers
+          return serverRequestP.then(serverResponse => {
+            // server sent a patch (rather than the full file)
+            if (serverResponse.headers.get('Delta-Patch') === 'true') {
+              console.log('got delta');
+              // use the patch on the cached file to create an updated response
+              return patchResponse(serverResponse, cacheResponse).then(patchedResponse => {
+                cacheIfDelta(cache, event.request, patchedResponse.clone());
+                return patchedResponse;
+              });
+            }
+            else {
+              cacheIfDelta(cache, event.request, serverResponse.clone());
+              return serverResponse;
+            }
+          });
+        }
       })
-      .then((response_from_server) => {
-        response = response_from_server;
-        return response.text()
-      }).then((text) => {
-          let new_body = diff.patch_apply(JSON.parse(text), cache.data)[0];
-          let new_response = new Response(new_body);
-
-          cache.version = response.headers.get('Delta-Version');
-          cache.data = new_body;
-
-          return Promise.resolve(new_response);
-        });
-
-      event.respondWith(responseP);
-
-    }
-
-  } else {
-    event.respondWith(fetch(event.request));
-  }
+    })
+  )
 };
 
+// takes a response with a patch in the body and applies the patch to the other response and returns a
+// promise resolving to a new response
+function patchResponse(patchResponse, response) {
+  return Promise.all([patchResponse.json(), response.text()]).then(([patch, responseBody]) => {
+    let updatedBody = diff.patch_apply(patch, responseBody)[0];
+    return changeResponseBody(response, updatedBody);
+  });
+}
 
+// creates a new Response with the given body
+function changeResponseBody(response, body) {
+  return new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers: response.headers
+  });
+}
+
+// cache the request/response if response contains the Delta-Version header
+function cacheIfDelta(cache, request, response) {
+  if (response.headers.has('Delta-Version')) {
+    console.log('caching');
+    return cache.put(request, response.clone());
+  }
+}
+
+// copies all headers into a new Headers
+function cloneHeaders(headers) {
+  let headersClone = new Headers();
+  for (let [name, value] of headers.entries()) {
+    headersClone.append(name, value);
+  }
+  return headersClone;
+}
 
 
 
