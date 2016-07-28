@@ -20,7 +20,9 @@
   "dependencies": {
     "diff": "^2.2.3",
     "express": "^4.14.0",
+    "md5": "^2.1.0",
     "node-uuid": "^1.4.7",
-    "pug": "^2.0.0-beta3"
+    "pug": "^2.0.0-beta3",
+    "text-history": "^1.0.5"
   }
 }

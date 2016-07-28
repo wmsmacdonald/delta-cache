@@ -28,20 +28,18 @@ self.onfetch = function(event) {
         }
         else {
           console.log('requesting delta');
-
-          let headersWithCachedVersion = cloneHeaders(event.request.headers);
-          headersWithCachedVersion.append('Delta-Version', cacheResponse.headers.get('Delta-Version'));
+          let etag = cacheResponse.headers.get('ETag');
 
           // attach version of file to request
           let serverRequestP = fetch(new Request(event.request, {
             headers: {
-              'Delta-Version': cacheResponse.headers.get('Delta-Version')
+              'If-None-Match': etag
             }
           }));
 
           return serverRequestP.then(serverResponse => {
             // server sent a patch (rather than the full file)
-            if (serverResponse.headers.get('Delta-Patch') === 'true') {
+            if (serverResponse.status === 226 && serverResponse.headers.get('Delta-Base') ===  etag) {
               console.log('got delta');
               // use the patch on the cached file to create an updated response
               return patchResponse(serverResponse, cacheResponse).then(patchedResponse => {
@@ -80,7 +78,7 @@ function changeResponseBody(response, body) {
 
 // cache the request/response if response contains the Delta-Version header
 function cacheIfDelta(cache, request, response) {
-  if (response.headers.has('Delta-Version')) {
+  if (response.headers.has('ETag')) {
     console.log('caching');
     return cache.put(request, response.clone());
   }
